@@ -34,10 +34,7 @@ class MockPaymentGateway implements PaymentGatewayInterface
         $amount = $orderDetails['amount'] ?? 0;
         $result = $this->charge($amount, $orderDetails);
         $result['status']         = 'success';
-        $result['initial_status'] = 'confirmed';   // mock: immediately confirmed
-
-        $token = 'mock_' . Str::random(24);
-        $result['payment_url'] = config('app.url') . '/mock-payment?token=' . $token;
+        $result['initial_status'] = 'confirmed';
 
         return $result;
     }
