@@ -1,6 +1,6 @@
 # SoftigitalShop — E-Commerce Backend API
 
-A production-ready Laravel backend for an e-commerce platform, built with clean architecture principles, SOLID design patterns, and a service-layer approach.
+A production-ready Laravel 12 backend for an e-commerce platform, built with clean architecture, SOLID design patterns, and a service-layer approach. Supports Mock and Paymob payment gateways, order lifecycle management, automated archiving, and Swagger API documentation.
 
 ---
 
@@ -18,25 +18,46 @@ A production-ready Laravel backend for an e-commerce platform, built with clean 
 ```bash
 git clone <repository-url> softigital-shop
 cd softigital-shop
+
 composer install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate --seed
 php artisan storage:link
+
+npm install
+npm run build
 ```
 
 ### Running the Application
 
 ```bash
-# Start the server
 php artisan serve
+```
 
-# Start the queue worker (required for order fulfillment notifications)
+For full development (server + queue + logs + Vite):
+
+```bash
+composer dev
+```
+
+Or run separately:
+
+```bash
+php artisan serve
 php artisan queue:work
-
-# Run the scheduler (for automated order archiving)
 php artisan schedule:work
 ```
+
+- **Queue worker** — Required for fulfillment notifications and async jobs
+- **Scheduler** — Runs `orders:archive` daily at 02:00 to archive old orders
+
+### Default Credentials
+
+| Role     | Email                    | Password |
+|----------|--------------------------|----------|
+| Customer | customer@softigital.com  | password |
+| Admin    | admin@softigital.com     | password |
 
 ### Running Tests
 
@@ -50,123 +71,191 @@ php artisan test
 vendor/bin/phpstan analyse
 ```
 
-### Default Credentials
-
-| Role     | Email                    | Password |
-|----------|--------------------------|----------|
-| Customer | customer@softigital.com  | password |
-| Admin    | admin@softigital.com     | password |
-
 ---
 
-## High-Level Architecture
+## High-Level Design
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           API Layer (HTTP)                               │
+│  Controllers → FormRequests → Resources → ApiResponse                    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Service Layer                                    │
+│  AuthService | OrderService | ProductService | MediaService | Fulfillment │
+│  PaymentGatewayManager → MockPaymentGateway | PaymobPaymentGateway        │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Data Layer                                       │
+│  Models: User, Admin, Product, Order, OrderItem, Media                   │
+│  Enums: OrderStatus, PaymentStatus                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ### Design Patterns
 
-| Pattern             | Implementation                                    | Purpose                                                      |
-|---------------------|---------------------------------------------------|--------------------------------------------------------------|
-| **Service Layer**   | `App\Services\*`                                  | Encapsulates all business logic outside controllers          |
-| **Strategy**        | `PaymentGatewayInterface` + `MockPaymentGateway`  | Swap payment providers without changing business logic        |
-| **Polymorphic Media** | `Media` model with `mediable` morphs           | One table handles images for users, products, reviews, etc.  |
-| **Repository-like** | Global scope on `Order` model                    | Transparent archiving without changing query code             |
-| **Observer**        | Job dispatch on order creation                    | Decoupled fulfillment notification from order flow            |
+| Pattern                | Implementation                                    | Purpose                                                  |
+|------------------------|---------------------------------------------------|----------------------------------------------------------|
+| **Service Layer**      | `App\Services\*`                                  | Business logic outside controllers                       |
+| **Strategy**           | `PaymentGatewayInterface` + Mock/Paymob gateways   | Swap payment providers without changing order flow       |
+| **Polymorphic Media**  | `Media` model with `mediable` morphs               | One table for images (products, users, etc.)             |
+| **Global Scope**       | `Order` model `active` scope                       | Transparent archiving; non-archived by default           |
+| **Custom Validation**  | `OrderStatusTransition` rule                       | Encapsulate status transition logic                      |
+| **Observer-style**     | `NotifyFulfillmentServiceJob`                      | Decoupled fulfillment notification from order creation   |
 
 ### Project Structure
 
 ```
 app/
-├── Console/Commands/          # Artisan commands (order archiving)
-├── Contracts/                 # Interfaces (PaymentGatewayInterface)
+├── Console/Commands/       # orders:archive (housekeeping)
+├── Contracts/              # PaymentGatewayInterface, HasMediaInterface
+├── Enums/                  # OrderStatus, PaymentStatus
 ├── Http/
-│   ├── Controllers/Api/V1/   # Thin API controllers
-│   ├── Middleware/            # EnsureIsAdmin guard
-│   ├── Requests/              # FormRequest validation
-│   └── Resources/             # API resource transformers
-├── Jobs/                      # Queue jobs (fulfillment notification)
-├── Models/                    # Eloquent models
-├── Services/                  # Business logic layer
-│   └── Payment/               # Payment gateway implementations
-├── Traits/                    # Reusable traits (MediaStorageTrait)
-└── Utils/                     # Helpers (ApiResponse)
+│   ├── Controllers/Api/V1/ # Thin API controllers
+│   ├── Middleware/         # EnsureIsAdmin
+│   ├── Requests/           # FormRequest validation
+│   ├── Resources/          # API resource transformers
+│   └── Rules/              # OrderStatusTransition
+├── Jobs/                   # NotifyFulfillmentServiceJob
+├── Models/                 # User, Admin, Product, Order, OrderItem, Media
+├── Services/
+│   ├── AuthService
+│   ├── OrderService
+│   ├── ProductService
+│   ├── MediaService
+│   ├── FulfillmentService
+│   └── Payment/            # MockPaymentGateway, PaymobPaymentGateway
+├── Traits/                 # HasMedia, MediaStorageTrait
+└── Utils/                  # ApiResponse
 ```
 
 ### Database Schema
 
-```
-users            — Customer accounts (Sanctum tokens)
-admins           — Admin accounts (separate model, separate tokens)
-products         — Product catalog
-media            — Polymorphic media (images for products, users, etc.)
-orders           — Customer orders (with archived_at for housekeeping)
-order_items      — Line items per order
-personal_access_tokens — Sanctum API tokens
-jobs / failed_jobs     — Queue infrastructure
-```
+| Table                   | Purpose                                                |
+|-------------------------|--------------------------------------------------------|
+| `users`                 | Customer accounts (Sanctum tokens)                     |
+| `admins`                | Admin accounts (separate model, separate tokens)       |
+| `products`              | Product catalog                                        |
+| `media`                 | Polymorphic media (products, users, etc.)              |
+| `orders`                | Orders with `status`, `payment_status`, `archived_at`  |
+| `order_items`           | Line items per order                                   |
+| `personal_access_tokens`| Sanctum API tokens                                     |
+| `jobs` / `failed_jobs`  | Queue infrastructure                                   |
+
+### Order & Payment Status
+
+**Order status** (lifecycle):
+
+- `pending` → `confirmed` → `shipped` → `delivered`
+- `cancelled` (terminal)
+
+**Payment status** (separate field):
+
+- `pending_payment` | `paid` | `payment_failed` | `refunded`
+
+Admin can update order status via `PATCH /api/v1/admin/orders/{order}/status` with valid transitions: `confirmed→shipped`, `shipped→delivered`.
 
 ---
 
 ## API Endpoints
 
-| Method | Endpoint                       | Auth   | Description                        |
-|--------|--------------------------------|--------|------------------------------------|
-| POST   | `/api/v1/register`             | Public | Customer registration              |
-| POST   | `/api/v1/login`                | Public | Customer login                     |
-| POST   | `/api/v1/admin/login`          | Public | Admin login                        |
-| GET    | `/api/v1/products`             | Public | Browse product catalog (cached)    |
-| POST   | `/api/v1/orders`               | User   | Place an order (rate-limited)      |
-| POST   | `/api/v1/admin/products`       | Admin  | Create a product (with images)     |
-| PATCH  | `/api/v1/admin/products/{id}`  | Admin  | Update a product (with images)     |
+| Method | Endpoint                              | Auth   | Description                    |
+|--------|---------------------------------------|--------|--------------------------------|
+| POST   | `/api/v1/register`                    | Public | Customer registration          |
+| POST   | `/api/v1/login`                       | Public | Customer login                 |
+| POST   | `/api/v1/admin/login`                 | Public | Admin login                    |
+| GET    | `/api/v1/products`                    | Public | Browse products                |
+| GET    | `/api/v1/orders`                      | User   | List orders (own or all if admin) |
+| POST   | `/api/v1/orders`                      | User   | Place order (rate-limited)     |
+| POST   | `/api/v1/media`                       | User   | Upload media                   |
+| DELETE | `/api/v1/media/{media}`               | User   | Delete media                   |
+| GET    | `/api/v1/admin/products`              | Admin  | List products                  |
+| GET    | `/api/v1/admin/products/{product}`    | Admin  | Get product                    |
+| POST   | `/api/v1/admin/products`              | Admin  | Create product                 |
+| POST   | `/api/v1/admin/products/{product}`    | Admin  | Update product                 |
+| DELETE | `/api/v1/admin/products/{product}`    | Admin  | Delete product                 |
+| GET    | `/api/v1/admin/orders`                | Admin  | List all orders                |
+| GET    | `/api/v1/admin/orders/{order}`        | Admin  | Get order                      |
+| PATCH  | `/api/v1/admin/orders/{order}/status` | Admin  | Update order status (shipped/delivered) |
 
----
+### Swagger Documentation
 
-## Business Requirement Mapping
+Interactive API docs at:
 
-### 1. Unified Media System
+```
+http://localhost:8000/api/documentation
+```
 
-Implemented via a **polymorphic `media` table** (`mediable_type`, `mediable_id`). Any model that needs media simply adds a `morphMany` relationship. Currently supports products and users. Extending to blog posts or reviews requires only adding the relationship to the new model — no schema or service changes needed.
+OpenAPI spec: `public/api-docs.json`
 
-### 2. Secure & Open Shopping
-
-- **Public**: Product browsing requires no authentication.
-- **Authenticated**: Orders require a valid Sanctum Bearer token.
-- **Registration/Login**: Separate endpoints for customers (`/register`, `/login`) and admins (`/admin/login`), using distinct Eloquent models (`User` vs `Admin`).
-
-### 3. Fast Checkout with Traffic Control
-
-- **Instant Response**: Orders are created synchronously and return immediately.
-- **Async Fulfillment**: A queued job (`NotifyFulfillmentServiceJob`) sends order data to the external fulfillment API with exponential backoff (10 retries, up to 1 hour delay).
-- **Rate Limiting**: The `/orders` endpoint is throttled to **10 requests per minute per user** via Laravel's rate limiter.
-
-### 4. Automated Housekeeping
-
-A scheduled command (`orders:archive`) runs **daily** and marks orders older than 3 years with an `archived_at` timestamp. A **global scope** on the `Order` model automatically filters these from all queries, keeping the active dashboard clean while preserving records.
-
-### 5. Administrative Control
-
-Admin routes are protected by a **double middleware layer**: `auth:sanctum` + custom `EnsureIsAdmin`. Admin and customer tokens are isolated via separate Eloquent models (`Admin` vs `User`). Admins can create and update products, including uploading images via multipart form data.
-
-### 6. Payments
-
-Uses the **Strategy Pattern**: `PaymentGatewayInterface` defines the contract; `MockPaymentGateway` provides the current implementation. Swapping to Stripe, PayPal, or any real provider means creating a new implementation class and updating one line in `AppServiceProvider`.
-
----
-
-## Performance Optimizations
-
-- **Product Caching**: Product listings are cached with a versioned key strategy. Cache is transparently invalidated when products are created or updated.
-- **Eager Loading**: All queries use `with()` to prevent N+1 issues.
-- **Database Indexing**: `archived_at` and `slug` columns are indexed for fast lookups.
-- **Queue-based Processing**: Heavy external API calls are offloaded to the queue.
+Use **Authorize** in Swagger UI to add a Bearer token (from `/login` or `/admin/login`).
 
 ---
 
 ## Environment Variables
 
-Add these to your `.env` file:
-
 ```env
-FULFILLMENT_API_URL=https://external-service.softigital.com/api
-FULFILLMENT_API_KEY=J1eAkhlHJhzAPWADii7TwlABIig7LD2e
+APP_URL=http://localhost:8000
+
+DB_CONNECTION=sqlite
+# DB_DATABASE=database/database.sqlite
+
 QUEUE_CONNECTION=database
+
+FULFILLMENT_API_URL=https://external-service.softigital.com/api
+FULFILLMENT_API_KEY=your-key
+
+PAYMENT_GATEWAY=mock
+# PAYMENT_GATEWAY=paymob
+
+# Paymob (when PAYMENT_GATEWAY=paymob)
+PAYMOB_API_KEY=
+PAYMOB_INTEGRATION_ID=
+PAYMOB_IFRAME_ID=
+PAYMOB_MERCHANT_ID=
+PAYMOB_HMAC_SECRET=
+PAYMOB_BASE_URL=https://accept.paymob.com/api
 ```
-"# softigitalshop" 
+
+---
+
+## Key Features
+
+### Payments
+
+- **Mock gateway** — Instant success for development
+- **Paymob** — Real integration with webhook/response handlers
+- Switch via `PAYMENT_GATEWAY` env
+- `payment_url` returned only when placing an order (not stored)
+
+### Automated Housekeeping
+
+- `orders:archive` runs daily at 02:00
+- Marks orders older than 3 years with `archived_at`
+- Global scope hides archived orders from default queries
+- Archived orders accessible via `Order::archived()`
+
+### Fulfillment
+
+- Queued job sends order data to external fulfillment API
+- Exponential backoff (10 retries, up to 1 hour)
+- Decoupled from order creation
+
+### Rate Limiting
+
+- `/orders` (POST): 10 requests/minute per user
+
+---
+
+## Performance
+
+- Product listings cached with versioned keys
+- Eager loading (`with()`) to avoid N+1
+- Indexed `archived_at`, `slug`
+- Queue-based external API calls

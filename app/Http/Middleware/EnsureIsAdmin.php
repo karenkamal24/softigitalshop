@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Middleware;
+
+use App\Models\Admin;
+use App\Utils\ApiResponse;
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class EnsureIsAdmin
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        if (! $request->user() instanceof Admin) {
+            return ApiResponse::forbidden('Access denied. Admin privileges required.');
+        }
+
+        return $next($request);
+    }
+}
+
+
+
+
