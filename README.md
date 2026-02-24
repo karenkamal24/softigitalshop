@@ -202,14 +202,8 @@ Use **Authorize** in Swagger UI to add a Bearer token (from `/login` or `/admin/
 
 ```env
 APP_URL=http://localhost:8000
+APP_URL=http://localhost:8000
 
-DB_CONNECTION=sqlite
-# DB_DATABASE=database/database.sqlite
-
-QUEUE_CONNECTION=database
-
-FULFILLMENT_API_URL=https://external-service.softigital.com/api
-FULFILLMENT_API_KEY=your-key
 
 PAYMENT_GATEWAY=mock
 # PAYMENT_GATEWAY=paymob
