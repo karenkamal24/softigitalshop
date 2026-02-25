@@ -11,7 +11,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('orders', function (Blueprint $table): void {
-            $table->dropColumn('payment_url');
+            if (Schema::hasColumn('orders', 'payment_url')) {
+                $table->dropColumn('payment_url');
+            }
         });
     }
 
