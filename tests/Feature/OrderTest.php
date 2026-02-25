@@ -22,7 +22,9 @@ class OrderTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
+        $this->user = User::factory()->create([
+            'address' => '123 Test Street, Cairo, Egypt',
+        ]);
         $this->token = $this->user->createToken('auth-token')->plainTextToken;
     }
 
