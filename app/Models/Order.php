@@ -52,7 +52,10 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    /** @param Builder<Order> $query */
+    /**
+     * @param Builder<Order> $query
+     * @return Builder<Order>
+     */
     public function scopeArchived(Builder $query): Builder
     {
         return $query->withoutGlobalScope('active')->whereNotNull('archived_at');

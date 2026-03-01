@@ -103,17 +103,15 @@ class MediaService
         $isFirst = true;
 
         foreach ($files as $file) {
-            if ($file instanceof UploadedFile) {
-                $uploadedMedia = $this->upload($model, $file, $collection, $disk);
+            $uploadedMedia = $this->upload($model, $file, $collection, $disk);
 
-                // Mark first image as primary
-                if ($isFirst) {
-                    $uploadedMedia->update(['is_primary' => true]);
-                    $isFirst = false;
-                }
-
-                $media->push($uploadedMedia);
+            // Mark first image as primary
+            if ($isFirst) {
+                $uploadedMedia->update(['is_primary' => true]);
+                $isFirst = false;
             }
+
+            $media->push($uploadedMedia);
         }
 
         return $media;

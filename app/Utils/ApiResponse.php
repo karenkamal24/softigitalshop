@@ -89,7 +89,7 @@ class ApiResponse
     {
         if ($data instanceof LengthAwarePaginator) {
             // Apply resource mapping if provided (as a string class name)
-            if ($resource !== null && is_string($resource)) {
+            if ($resource !== null) {
                 $items = $resource::collection($data->items());
             } else {
                 $items = $data->items();

@@ -20,8 +20,8 @@ interface PaymentGatewayInterface
     /**
      * Process a payment for the given order.
      *
-     * @param array $orderDetails
-     * @return array
+     * @param array<string, mixed> $orderDetails
+     * @return array<string, mixed>
      */
     public function processPayment(array $orderDetails): array;
 }

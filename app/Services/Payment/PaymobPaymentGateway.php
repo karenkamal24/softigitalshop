@@ -17,6 +17,7 @@ class PaymobPaymentGateway implements PaymentGatewayInterface
         private readonly string $iframeId,
         private readonly string $merchantId,
         private readonly string $baseUrl,
+        /** @phpstan-ignore property.onlyWritten */
         private readonly ?string $hmacSecret = null,
     ) {}
 

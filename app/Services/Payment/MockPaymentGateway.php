@@ -29,6 +29,10 @@ class MockPaymentGateway implements PaymentGatewayInterface
         ];
     }
 
+    /**
+     * @param array<string, mixed> $orderDetails
+     * @return array<string, mixed>
+     */
     public function processPayment(array $orderDetails): array
     {
         $amount = $orderDetails['amount'] ?? 0;

@@ -27,7 +27,6 @@ class UpdateProductRequest extends FormRequest
         ];
     }
 
-    /** @return array<string, mixed> */
     protected function prepareForValidation(): void
     {
         if ($this->has('is_active')) {

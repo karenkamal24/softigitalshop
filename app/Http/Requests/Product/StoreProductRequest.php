@@ -15,7 +15,7 @@ class StoreProductRequest extends FormRequest
         return true;
     }
 
-    /** @return array<string, array<int, string>> */
+    /** @return array<string, array<int, \Illuminate\Validation\Rules\Unique|string>> */
     public function rules(): array
     {
         return [

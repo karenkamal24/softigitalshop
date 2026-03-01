@@ -12,6 +12,7 @@ enum OrderStatus: string
     case Delivered = 'delivered';
     case Cancelled = 'cancelled';
 
+    /** @return array<int, self> */
     public static function deliverable(): array
     {
         return [self::Confirmed];

@@ -13,9 +13,10 @@ use Illuminate\Http\UploadedFile;
 
 trait HasMedia
 {
-    /** @return MorphMany<Media, $this> */
+    /** @return MorphMany<Media, \Illuminate\Database\Eloquent\Model> */
     public function media(): MorphMany
     {
+        /** @var MorphMany<Media, \Illuminate\Database\Eloquent\Model> */
         return $this->morphMany(Media::class, 'mediable');
     }
 
