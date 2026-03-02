@@ -22,13 +22,19 @@ class AdminProductController extends Controller
         private readonly MediaService $mediaService,
     ) {}
 
-    public function index(): JsonResponse
-    {
-        $perPage = request()->query('per_page', 15);
-        $products = Product::with('media')->paginate($perPage);
+public function index(): JsonResponse
+{
+    $perPage = (int) request()->query('per_page', 15);
+    $page    = (int) request()->query('page', 1);
 
-        return ApiResponse::success('Products retrieved successfully', $products, ProductResource::class);
-    }
+    $products = $this->productService->list($perPage, $page);
+
+    return ApiResponse::success(
+        'Products retrieved successfully',
+        $products,
+        ProductResource::class
+    );
+}
 
     public function show(Product $product): JsonResponse
     {
